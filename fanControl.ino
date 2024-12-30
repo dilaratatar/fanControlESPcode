@@ -51,13 +51,14 @@ static void mqttCallback(char* topic, byte* payload, unsigned  int length){ // a
 							
 			}
 	    
-    	Serial.println(charedPayload); // seri monitore değerleri yazıyor
+		   	Serial.println(charedPayload); // seri monitore değerleri yazıyor
 			Serial.println(signal);
 			Serial.println(speed);
 			Serial.println(autoMode);
 
 		}
 
+<<<<<<< HEAD
 class connectionTask : public Task{ // bağlantı işlemlerinin yapıldığı thread 
 
 	public:
