@@ -2,17 +2,22 @@
 #include <Task.h> // schedular'ın alt kütüphanesi 
 #include <ESP8266WiFi.h> // wifi a bağlanılmasını sağlayan arduino kütüphanesi 
 #include <PubSubClient.h> // mqtt ye bağlanmasını sağlayan kütüphane 
+#include <EEPROM.h> //konfigurasyonu eeproma kaydetmek için
 
 #define indicatorLED    4 // gpio4 e bağlı olan ledi yakıyor kırmızı led D3 
 #define fanPin		      5 // gpio5 fan bağlı D2
 
-const char* ssid = "Iphone"; // ssid bağlanılan wifi ismi 
-const char* password = "11111111"; // wifi şifresi
+char ssid[10] = "tunahan"; // ssid bağlanılan wifi ismi 
+char password[10] = "bruhhhhh"; // wifi şifresi
 // arayüzden gelen mesaja göre esp, mqtt ile haberleşip sunucu üzerinden arayüz ve esp haberleşmesi sağlanıyor 
 const char* mqttServer = "tuna.sh"; // sunucunun adresi
 const int mqttPort = 1884; // mqtt nin portu 
 const char* mqttUser = ""; // eğer user varsda girilir 
 const char* mqttPassword = ""; // eğer password varsa girilir 
+
+volatile int isFirstEverWifi = 1;
+
+
 
 int minTemp = 20; //default olarak 20 derece üstünde fan calisacak (sadece oto mod için) iki mod var otomatik mod -> 20 derecenin üstündeyse oto çalışıyor ve arayüz mod -> arayüzü kontrol eden kişi belirler
 int signal = 0; // fanın açık mı kapalı mı durumunu kontrol eder 
@@ -23,6 +28,25 @@ int therm = 0; // sıcaklık değeri
 WiFiClient espClient; // WifiClient classının objesi espClient 
 PubSubClient client(espClient); // PubSubClient classının client objesinin escClient argümanı 
 
+String split(String data, char delimiter, int index) { //Stringi belirli parçalaraya aırmak için fonksiyon. javadaki splitle aynı
+  int start = 0;
+  int end = -1;
+  int currentIndex = 0;
+
+  while (currentIndex <= index) {
+    start = end + 1;
+    end = data.indexOf(delimiter, start);
+    if (end == -1) {  
+      end = data.length();
+    }
+
+    if (currentIndex == index) {
+      return data.substring(start, end);
+    }
+    currentIndex++;
+  }
+  return "";  
+}
 static void mqttCallback(char* topic, byte* payload, unsigned  int length){ // abone olduğumuz mqtt topiclerinden mesaj geldiğinde tetiklenen Callback fonksiyonu  
 // gelen mesaj byte cinsinden, bu mesajı bytedan chara çeviriyor -> byte ile işlem yapılmaz chara çevrilmesi gerekir 
 //  unsigned  int length gelen verinin kaç byte olduğunu belirtir 
@@ -32,16 +56,41 @@ static void mqttCallback(char* topic, byte* payload, unsigned  int length){ // a
   			}
 			if (strcmp(topic, "esp/signal") == 0) { // strcmp-> iki tane string eşit mi değil mi kontrol eder. 
 				signal = atoi(charedPayload); // eşit ise sinyale gelen sinyal sinyale eşitlenir 
+				Serial.write("Asignal is " + autoMode);
+				EEPROM.write(0,(byte)signal);
 			}
 			if (strcmp(topic, "esp/speed") == 0) {
 				speed = atoi(charedPayload); 
+
+				EEPROM.write(1,(byte)speed);
 			}
 			if (strcmp(topic, "esp/auto") == 0) {
 				autoMode = atoi(charedPayload);
+				Serial.write("Auto mod is " + autoMode);
+				EEPROM.write(2,(byte)autoMode);
 			}
 			if (strcmp(topic, "esp/minTemp") == 0) {
 				minTemp = atoi(charedPayload);
+
+				EEPROM.write(3,(byte)minTemp);
 			}
+
+			if (strcmp(topic, "esp/wifi") == 0) {
+				split(charedPayload,';',0).toCharArray(ssid, sizeof(ssid));
+				split(charedPayload, ';' , 1).toCharArray(password, sizeof(password));
+				for(int i = 0; i < 10; i++){
+					
+					EEPROM.write(4+i,(byte)ssid[i]);
+				} 
+
+				for(int i = 0; i < 10; i++){
+					
+					EEPROM.write(14+i,(byte)password[i]);
+				} 
+
+				isFirstEverWifi = 0;
+			}	
+
 			if (strcmp(topic, "esp/statusCheck") == 0) { 
 		
 				char payload[100]; 
@@ -49,16 +98,17 @@ static void mqttCallback(char* topic, byte* payload, unsigned  int length){ // a
 				client.publish("esp/statusInfo", payload); // mesaj yollanılan topiclere abone olunması gerekmez. statusInfo topic'i verilerin hepsini arayüze yolluyor 
 				Serial.println("status info gonderildi"); 
 							
+			}else if(strcmp(topic, "esp/speed") != 0){
+				EEPROM.commit();
+				Serial.println("EEPROM kaydı yapıldı");
 			}
 	    
-		   	Serial.println(charedPayload); // seri monitore değerleri yazıyor
-			Serial.println(signal);
-			Serial.println(speed);
-			Serial.println(autoMode);
+			Serial.println("MQTT vpaketi alındı");
 
+			
+			
 		}
 
-<<<<<<< HEAD
 class connectionTask : public Task{ // bağlantı işlemlerinin yapıldığı thread 
 
 	public:
@@ -70,13 +120,13 @@ class connectionTask : public Task{ // bağlantı işlemlerinin yapıldığı th
 
 		    
 		    while (WiFi.status() != WL_CONNECTED) { // wifi'a bağlı mı değil mi kontrol ediyor 
-          delay(1000);
-          Serial.print("."); // her saniyede 1 nokta koyulur
+			  delay(1000);
+			  Serial.print("."); // her saniyede 1 nokta koyulur
 		    }
 
 		    Serial.println(); 
 		    Serial.println("Wifi'ye baglanildi");
-		    Serial.println( "IP : " + WiFi.localIP()); 
+		    Serial.println( "IP : " + WiFi.localIP().toString()); 
 		}
 		
 		void connectMQTT(){ // mqtt bağlantısının yapıldığı fonksiyon 
@@ -142,6 +192,7 @@ class fanControlTask : public Task{
 
 			if(autoMode == 1){ // otomatik moddaysa
 				if(therm >= minTemp){ 
+					
 					int speedCoef = therm-minTemp;
 					speed = map(speedCoef, 0, 30-minTemp, 128 ,255); // otomatik modda ortam sıcaklığına göre fan hızını ayarlıyor 
 					analogWrite(fanPin, speed); // pwm veriyor
@@ -152,11 +203,13 @@ class fanControlTask : public Task{
 				}
 
 			}else{ // otomatik modda değilse 
+
 				if(signal == 1){ // fan açma komutu gelip gelinmediğine bakar 
-			
+					
 					analogWrite(fanPin, speed); // geldiyse sliderda ayarlanana göre pwm verir
 					digitalWrite(indicatorLED, 1); // ledi yakıyor
 				}else{
+					
 					digitalWrite(fanPin, 0); // gelmediyse fan çalışmaz
 					digitalWrite(indicatorLED, 0); // led yanmıyor
 				}
@@ -204,7 +257,30 @@ class mqttReader : public Task{ // sürekli olarak topiclerden mesaj gelip gelme
 void setup(){ 
 	Serial.begin(115200);
 
-  // threadleri başlatıyor 
+	EEPROM.begin(512);
+  
+	signal = (int)EEPROM.read(0);
+	speed = (int)EEPROM.read(1);
+	autoMode = (int)EEPROM.read(2);
+	minTemp = (int)EEPROM.read(3);
+
+	if(isFirstEverWifi == 0){
+	
+		for(int i = 0; i < 10; i++){
+		
+			ssid[i] = (char)EEPROM.read(4+i);
+
+		}	
+	
+		for(int i = 0; i < 10; i++){
+		
+			password[i] = (char)EEPROM.read(14+i);
+
+		}
+
+
+	}
+	// threadleri başlatıyor 
 	Scheduler.start(&connectionTask); 
 	Scheduler.start(&fanControlTask);
 	Scheduler.start(&thermReader);
