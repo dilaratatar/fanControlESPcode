@@ -5,7 +5,7 @@
 #include <EEPROM.h> //konfigurasyonu eeproma kaydetmek için
 
 #define indicatorLED    4 // gpio4 e bağlı olan ledi yakıyor kırmızı led D3 
-#define fanPin		      5 // gpio5 fan bağlı D2
+#define fanPin		    5 // gpio5 fan bağlı D2
 
 char ssid[10] = "tunahan"; // ssid bağlanılan wifi ismi 
 char password[10] = "bruhhhhh"; // wifi şifresi
@@ -136,7 +136,7 @@ class connectionTask : public Task{ // bağlantı işlemlerinin yapıldığı th
 		void connectMQTT(){ // mqtt bağlantısının yapıldığı fonksiyon 
 		
 		    client.setServer(mqttServer, mqttPort); // sunucu bilgilerini alıp mqtt bağlantısını gerçekleştiren fonksiyon
-		    client.setCallback(mqttCallback);
+		    client.setCallback(mqttCallback); // arayüzden mesaj geldğinde tetiklenecek fonksiyonu setlediğimiz metod 
 		    Serial.print("MQTT baglantisi kuruluyor...");
 		    
 		    if (client.connect("ESP8266Client", mqttUser, mqttPassword)) { // esp sunucuya bağlandığında ESP8266Client yazar
@@ -254,7 +254,7 @@ class mqttReader : public Task{ // sürekli olarak topiclerden mesaj gelip gelme
 	public:
 		void setup(){}
 		void loop(){
-			client.loop();
+			client.loop(); //topclerin sürekli dinlenmesini sağlar
 		}
 
 }mqttReader;
@@ -287,10 +287,10 @@ void setup(){
 
 	}
 	// threadleri başlatıyor 
-	Scheduler.start(&connectionTask); 
-	Scheduler.start(&fanControlTask);
-	Scheduler.start(&thermReader);
-	Scheduler.start(&mqttReader);
+	Scheduler.start(&connectionTask); // wifi bağlanmak ve kontroletmek, mqtt bağlanır kontroş eder, mqtt kanallarına abone olur
+	Scheduler.start(&fanControlTask); // fanın çalışıp çalışılmayacağı, hızı vs sıcaklık kontrol edilir
+	Scheduler.start(&thermReader); // sıcaklık belirlenir
+	Scheduler.start(&mqttReader); // mqtt mesajları dinlenir
 	Scheduler.begin(); 
 
 }
