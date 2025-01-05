@@ -25,8 +25,8 @@ int speed = 0; // fanın hızını ayarlar 255 maks hızı, 0 iken çalışmıyo
 int autoMode = 1; // bu high iken otomatik modda yani 20 derece üstüne çıkınca çalışıyor 
 int therm = 0; // sıcaklık değeri 
 
-WiFiClient espClient; // WifiClient classının objesi espClient 
-PubSubClient client(espClient); // PubSubClient classının client objesinin escClient argümanı 
+WiFiClient espClient; // WifiClient classının objesi espClient ,wifi bilgilerini içerir
+PubSubClient client(espClient); // PubSubClient classının client objesinin escClient argümanı , mqttye bağlanılmasını sağlar
 
 String split(String data, char delimiter, int index) { //Stringi belirli parçalaraya aırmak için fonksiyon. javadaki splitle aynı
   int start = 0;
@@ -47,6 +47,8 @@ String split(String data, char delimiter, int index) { //Stringi belirli parçal
   }
   return "";  
 }
+
+
 static void mqttCallback(char* topic, byte* payload, unsigned  int length){ // abone olduğumuz mqtt topiclerinden mesaj geldiğinde tetiklenen Callback fonksiyonu  
 // gelen mesaj byte cinsinden, bu mesajı bytedan chara çeviriyor -> byte ile işlem yapılmaz chara çevrilmesi gerekir 
 //  unsigned  int length gelen verinin kaç byte olduğunu belirtir 
@@ -54,9 +56,10 @@ static void mqttCallback(char* topic, byte* payload, unsigned  int length){ // a
 			for (int i = 0; i < length; i++) { // byte'lar char'a çevirilip payload'a yazılır 
     				charedPayload[i] = (char)payload[i]; // type casting 
   			}
-			if (strcmp(topic, "esp/signal") == 0) { // strcmp-> iki tane string eşit mi değil mi kontrol eder. 
+			// otomatik moddaysa bunlar çalışmaz 
+			if (strcmp(topic, "esp/signal") == 0) { // strcmp fonksiyonu-> iki tane string parametresi alır ve eşit mi değil mi kontrol eder. topic ile esp signalı karşılaştırır
 				signal = atoi(charedPayload); // eşit ise sinyale gelen sinyal sinyale eşitlenir 
-				Serial.write("Asignal is " + autoMode);
+				Serial.write("signal is " + signal); // gelen signal mesajı ekrana yazdırılır 1 veya 0 
 				EEPROM.write(0,(byte)signal);
 			}
 			if (strcmp(topic, "esp/speed") == 0) {
@@ -65,12 +68,13 @@ static void mqttCallback(char* topic, byte* payload, unsigned  int length){ // a
 				EEPROM.write(1,(byte)speed);
 			}
 			if (strcmp(topic, "esp/auto") == 0) {
+
 				autoMode = atoi(charedPayload);
 				Serial.write("Auto mod is " + autoMode);
 				EEPROM.write(2,(byte)autoMode);
 			}
-			if (strcmp(topic, "esp/minTemp") == 0) {
-				minTemp = atoi(charedPayload);
+			if (strcmp(topic, "esp/minTemp") == 0) { // minimum sıcaklık eğerini arayüzde değiştirirsem buraya giriyor ve sıcaklığı örnein 20 derece ayarlarsam min sıcalık 20 olur
+				minTemp = atoi(charedPayload); // atoi ascii to integer demek gelen ascii değerlerini integera çevirir
 
 				EEPROM.write(3,(byte)minTemp);
 			}
@@ -237,7 +241,8 @@ class thermReader : public Task{
 			char buffer[16]; 
 			itoa(therm, buffer, 10); // gelen integer ntc verilerini string'e çevirir mqtt'ye yollamak için. itoa-> integer to ascii
 			
-			client.publish("esp/therm", buffer); // mqttnin therm topic'ine ntc değerlerini yolluyor 
+			client.publish("esp/therm", buffer); // mqttnin therm topic'ine ntc değerlerini yolluyor, esp bağlandığında ekranda bu sıcaklık değeri yazar ve 
+			                                     // ve grafik oluşturmaya başlar 500ms de bir bu analog veriyi alıp grafiği çizer 1
 			delay(500);
 
 		}
@@ -253,6 +258,7 @@ class mqttReader : public Task{ // sürekli olarak topiclerden mesaj gelip gelme
 		}
 
 }mqttReader;
+
 
 void setup(){ 
 	Serial.begin(115200);
